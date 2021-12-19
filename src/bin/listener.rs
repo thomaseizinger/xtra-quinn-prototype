@@ -1,6 +1,5 @@
 use anyhow::Result;
 use futures::StreamExt;
-use multistream_select::Version;
 use quinn::{Endpoint, Incoming, ServerConfig};
 use rustls::PrivateKey;
 use std::{net::SocketAddr, sync::Arc};
@@ -16,10 +15,9 @@ async fn main() -> Result<()> {
             let mut bi_streams = new_connection.bi_streams.fuse();
 
             while let Ok((mut send, mut recv)) = bi_streams.select_next_some().await {
-                let protocol = match multistream_select::dialer_select_proto(
+                let protocol = match multistream_select::listener_select_proto(
                     BiStream::new(&mut send, &mut recv),
                     vec![PingActor::PROTOCOL],
-                    Version::V1,
                 )
                 .await
                 {
