@@ -1,4 +1,5 @@
 use anyhow::Result;
+use multistream_select::NegotiationError;
 use multistream_select::Version;
 use quinn::{ClientConfig, Endpoint};
 use rustls::client::{ServerCertVerified, ServerCertVerifier};
@@ -11,8 +12,7 @@ use xtra_quinn_prototype::{handle_protocol, BiStream};
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    let mut endpoint = Endpoint::client("127.0.0.1:0".parse()?)?;
-    endpoint.set_default_client_config(configure_client());
+    let endpoint = make_client_endpoint()?;
 
     let connection = endpoint
         .connect("127.0.0.1:8080".parse()?, "localhost")?
@@ -36,7 +36,14 @@ async fn main() -> Result<()> {
         .await
         {
             Ok((protocol, _)) => protocol,
-            Err(e) => {
+            Err(NegotiationError::Failed) => {
+                eprintln!(
+                    "Protocol negotiation failed: Protocol {} is unsupported by server",
+                    protocol
+                );
+                continue;
+            }
+            Err(NegotiationError::ProtocolError(e)) => {
                 eprintln!("Protocol negotiation failed: {}", e);
                 continue;
             }
@@ -46,6 +53,13 @@ async fn main() -> Result<()> {
     }
 
     Ok(())
+}
+
+fn make_client_endpoint() -> Result<Endpoint> {
+    let mut endpoint = Endpoint::client("0.0.0.0:0".parse()?)?;
+    endpoint.set_default_client_config(skip_verification_client_config());
+
+    Ok(endpoint)
 }
 
 /// Dummy certificate verifier that treats any certificate as valid.
@@ -72,7 +86,7 @@ impl ServerCertVerifier for SkipServerVerification {
     }
 }
 
-fn configure_client() -> ClientConfig {
+fn skip_verification_client_config() -> ClientConfig {
     let crypto = rustls::ClientConfig::builder()
         .with_safe_defaults()
         .with_custom_certificate_verifier(SkipServerVerification::new())
