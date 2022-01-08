@@ -1166,6 +1166,7 @@ dependencies = [
  "multistream-select",
  "quinn",
  "rcgen",
+ "ring",
  "rustls",
  "tempfile",
  "tokio",

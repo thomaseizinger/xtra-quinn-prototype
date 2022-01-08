@@ -1,29 +1,40 @@
-use anyhow::Result;
+use anyhow::{anyhow, Result};
 use futures::StreamExt;
 use quinn::{Endpoint, Incoming, ServerConfig};
+use ring::rand::SystemRandom;
+use ring::signature::KeyPair;
 use rustls::PrivateKey;
 use std::net::SocketAddr;
 use xtra_quinn_prototype::{handle_protocol, BiStream, PingActor};
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    let key_pair = match std::env::args().nth(1) {
-        Some(private_key) => {
-            let private_key = hex::decode(private_key)?;
-            rcgen::KeyPair::from_der(&private_key)?
-        }
+    let ed25519_der_private_key = match std::env::args().nth(1) {
+        Some(private_key) => hex::decode(private_key)?,
         None => {
-            let key_pair = rcgen::KeyPair::generate(&rcgen::PKCS_ECDSA_P384_SHA384)?;
+            let private_key = ring::signature::Ed25519KeyPair::generate_pkcs8(&SystemRandom::new())
+                .map_err(|_| anyhow!("Failed to generate new ed25519 keypair"))?
+                .as_ref()
+                .to_vec();
 
-            println!("Private key: {}", hex::encode(key_pair.serialize_der()));
+            println!("Private key: {}", hex::encode(&private_key));
 
-            key_pair
+            private_key
         }
     };
 
-    println!("Public key: {}", hex::encode(key_pair.public_key_raw()));
+    println!(
+        "Public key: {}",
+        hex::encode(
+            ring::signature::Ed25519KeyPair::from_pkcs8(&ed25519_der_private_key)
+                .unwrap()
+                .public_key()
+                .as_ref()
+                .to_vec()
+        )
+    );
 
-    let mut incoming = make_server_endpoint("0.0.0.0:0".parse()?, key_pair)?.fuse();
+    let mut incoming = make_server_endpoint("0.0.0.0:0".parse()?, ed25519_der_private_key)?.fuse();
 
     loop {
         match incoming.select_next_some().await.await {
@@ -58,8 +69,11 @@ async fn main() -> Result<()> {
     }
 }
 
-pub fn make_server_endpoint(bind_addr: SocketAddr, key_pair: rcgen::KeyPair) -> Result<Incoming> {
-    let server_config = self_signed_cert_config(key_pair)?;
+pub fn make_server_endpoint(
+    bind_addr: SocketAddr,
+    ed25519_der_private_key: Vec<u8>,
+) -> Result<Incoming> {
+    let server_config = self_signed_cert_config(ed25519_der_private_key)?;
     let (endpoint, incoming) = Endpoint::server(server_config, bind_addr)?;
 
     println!("Listening on {}", endpoint.local_addr()?);
@@ -67,12 +81,14 @@ pub fn make_server_endpoint(bind_addr: SocketAddr, key_pair: rcgen::KeyPair) -> 
     Ok(incoming)
 }
 
-fn self_signed_cert_config(key_pair: rcgen::KeyPair) -> Result<ServerConfig> {
+fn self_signed_cert_config(ed25519_der_private_key: Vec<u8>) -> Result<ServerConfig> {
+    let key_pair = rcgen::KeyPair::from_der_and_sign_algo(
+        &ed25519_der_private_key,
+        &rcgen::PKCS_ECDSA_P384_SHA384,
+    )?;
+
     let mut params = rcgen::CertificateParams::new(vec!["example.com".into()]);
-    params.alg = key_pair
-        .compatible_algs()
-        .next()
-        .expect("always exactly one element");
+    params.alg = &rcgen::PKCS_ECDSA_P384_SHA384;
     params.key_pair = Some(key_pair);
 
     let cert = rcgen::Certificate::from_params(params)?;

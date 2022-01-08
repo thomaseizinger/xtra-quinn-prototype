@@ -17,4 +17,5 @@ async-trait = "0.1"
 tempfile = "3"
 x509-certificate = "0.6"
 hex = "0.4"
+ring = "0.16"
 rustls = { version = "0.20", features = ["quic", "dangerous_configuration"] }
