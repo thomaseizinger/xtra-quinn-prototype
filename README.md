@@ -5,8 +5,8 @@ The question we started out with was: How can we use QUIC's multiplexing to esta
 The answer is:
 
 - Use a custom certificate verifier so we can use self-signed certificates.
-In a real application, we obviously want _some_ cryptography here but for this PoC we simply disable the verification.
-**DO NOT COPY THIS INTO A PRODUCTION SYSTEM!**
+  We expect the certificate to be signed with a specific public key.
+  This has not been audited by a cryptographer so might be complete bogus.
 - Use libp2p `multistream-select` to negotiate the purpose of a newly opened, bi-directional stream.
 - Once established, spawn the actor appropriate for the given protocol and hand the reading and writing end to it.
 
