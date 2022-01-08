@@ -13,6 +13,9 @@ The answer is:
 ## Usage:
 
 ```shell
-cargo run --bin listener
-cargo run --bin dialer
+cargo run --bin listener 
+cargo run --bin dialer {port} {pubkey}
 ```
+
+The `{port}` and `{pubkey}` are printed after starting the listener; example `cargo run --bin dialer 49503 3tovpICi8sTeTKlvEsSUXs0342BPh9w8lwEIALkJTc8=`.
+The listener supports protocol `/ping/1.0.0`, so once the dialer asks for which protocol to use you can enter that to upgrade successfully and receive ping/pong message.
