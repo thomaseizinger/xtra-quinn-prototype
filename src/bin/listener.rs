@@ -7,7 +7,23 @@ use xtra_quinn_prototype::{handle_protocol, BiStream, PingActor};
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    let mut incoming = make_server_endpoint("0.0.0.0:0".parse()?)?.fuse();
+    let key_pair = match std::env::args().nth(1) {
+        Some(private_key) => {
+            let private_key = hex::decode(private_key)?;
+            rcgen::KeyPair::from_der(&private_key)?
+        }
+        None => {
+            let key_pair = rcgen::KeyPair::generate(&rcgen::PKCS_ECDSA_P384_SHA384)?;
+
+            println!("Private key: {}", hex::encode(key_pair.serialize_der()));
+
+            key_pair
+        }
+    };
+
+    println!("Public key: {}", hex::encode(key_pair.public_key_raw()));
+
+    let mut incoming = make_server_endpoint("0.0.0.0:0".parse()?, key_pair)?.fuse();
 
     loop {
         match incoming.select_next_some().await.await {
@@ -42,8 +58,8 @@ async fn main() -> Result<()> {
     }
 }
 
-pub fn make_server_endpoint(bind_addr: SocketAddr) -> Result<Incoming> {
-    let server_config = self_signed_cert_config()?;
+pub fn make_server_endpoint(bind_addr: SocketAddr, key_pair: rcgen::KeyPair) -> Result<Incoming> {
+    let server_config = self_signed_cert_config(key_pair)?;
     let (endpoint, incoming) = Endpoint::server(server_config, bind_addr)?;
 
     println!("Listening on {}", endpoint.local_addr()?);
@@ -51,13 +67,15 @@ pub fn make_server_endpoint(bind_addr: SocketAddr) -> Result<Incoming> {
     Ok(incoming)
 }
 
-fn self_signed_cert_config() -> Result<ServerConfig> {
-    let cert = rcgen::generate_simple_self_signed(vec!["localhost".into()])?;
+fn self_signed_cert_config(key_pair: rcgen::KeyPair) -> Result<ServerConfig> {
+    let mut params = rcgen::CertificateParams::new(vec!["example.com".into()]);
+    params.alg = key_pair
+        .compatible_algs()
+        .next()
+        .expect("always exactly one element");
+    params.key_pair = Some(key_pair);
 
-    println!(
-        "Public key: {}",
-        hex::encode(cert.get_key_pair().public_key_raw())
-    );
+    let cert = rcgen::Certificate::from_params(params)?;
 
     let cert_der = cert.serialize_der()?;
     let priv_key = cert.serialize_private_key_der();

@@ -1167,7 +1167,6 @@ dependencies = [
  "quinn",
  "rcgen",
  "rustls",
- "rustls-pemfile",
  "tempfile",
  "tokio",
  "x509-certificate",
