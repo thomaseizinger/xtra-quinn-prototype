@@ -1,0 +1,21 @@
+[package]
+name = "quinn-p2p-config"
+version = "0.1.0"
+edition = "2021"
+description = "Configure quinn for public-key authentication by means of self-signed certificates."
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+quinn-proto = "0.8"
+rcgen = "0.8"
+x509-certificate = "0.6"
+hex = "0.4"
+rustls = { version = "0.20", features = ["quic", "dangerous_configuration"] }
+anyhow = "1"
+
+[dev-dependencies]
+quinn = "0.8"
+ring = "0.16"
+tokio = { version = "1", features = ["full"] }
+futures = "0.3"

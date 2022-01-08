@@ -1,9 +1,8 @@
 use anyhow::{anyhow, Result};
 use futures::StreamExt;
-use quinn::{Endpoint, Incoming, ServerConfig};
+use quinn::{Endpoint, Incoming};
 use ring::rand::SystemRandom;
 use ring::signature::KeyPair;
-use rustls::PrivateKey;
 use std::net::SocketAddr;
 use xtra_quinn_prototype::{handle_protocol, BiStream, PingActor};
 
@@ -34,7 +33,14 @@ async fn main() -> Result<()> {
         )
     );
 
-    let mut incoming = make_server_endpoint("0.0.0.0:0".parse()?, ed25519_der_private_key)?.fuse();
+    let (endpoint, incoming) = Endpoint::server(
+        quinn_p2p_config::server(ed25519_der_private_key)?,
+        "0.0.0.0:0".parse()?,
+    )?;
+
+    println!("Listening on {}", endpoint.local_addr()?);
+
+    let mut incoming = incoming.fuse();
 
     loop {
         match incoming.select_next_some().await.await {
@@ -67,35 +73,4 @@ async fn main() -> Result<()> {
             }
         }
     }
-}
-
-pub fn make_server_endpoint(
-    bind_addr: SocketAddr,
-    ed25519_der_private_key: Vec<u8>,
-) -> Result<Incoming> {
-    let server_config = self_signed_cert_config(ed25519_der_private_key)?;
-    let (endpoint, incoming) = Endpoint::server(server_config, bind_addr)?;
-
-    println!("Listening on {}", endpoint.local_addr()?);
-
-    Ok(incoming)
-}
-
-fn self_signed_cert_config(ed25519_der_private_key: Vec<u8>) -> Result<ServerConfig> {
-    let key_pair = rcgen::KeyPair::from_der(&ed25519_der_private_key)?;
-
-    let mut params = rcgen::CertificateParams::new(vec!["example.com".into()]);
-    params.alg = &key_pair.compatible_algs().next().expect("always an algo");
-    params.key_pair = Some(key_pair);
-
-    let cert = rcgen::Certificate::from_params(params)?;
-
-    let cert_der = cert.serialize_der()?;
-    let priv_key = cert.serialize_private_key_der();
-    let priv_key = PrivateKey(priv_key);
-    let cert_chain = vec![rustls::Certificate(cert_der)];
-
-    let server_config = ServerConfig::with_single_cert(cert_chain, priv_key)?;
-
-    Ok(server_config)
 }
