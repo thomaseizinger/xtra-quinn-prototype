@@ -1,4 +1,4 @@
-use anyhow::Result;
+use anyhow::{Context, Result};
 use multistream_select::NegotiationError;
 use multistream_select::Version;
 use quinn::{ClientConfig, Endpoint};
@@ -12,10 +12,19 @@ use xtra_quinn_prototype::{handle_protocol, BiStream};
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    let endpoint = make_client_endpoint()?;
+    let port = std::env::args()
+        .nth(1)
+        .context("Expected port to connect to")?
+        .parse::<u16>()
+        .context("Cannot parse port as u16")?;
+
+    let public_key = hex::decode(std::env::args().nth(2).context("Expected public key")?)
+        .context("Expected hex-encoded public key")?;
+
+    let endpoint = make_client_endpoint(public_key)?;
 
     let connection = endpoint
-        .connect("127.0.0.1:8080".parse()?, "localhost")?
+        .connect(format!("127.0.0.1:{}", port).parse()?, "localhost")?
         .await?;
 
     println!("Connected! Enter the protocol you would like to start.");
@@ -55,41 +64,47 @@ async fn main() -> Result<()> {
     Ok(())
 }
 
-fn make_client_endpoint() -> Result<Endpoint> {
+fn make_client_endpoint(public_key: Vec<u8>) -> Result<Endpoint> {
     let mut endpoint = Endpoint::client("0.0.0.0:0".parse()?)?;
-    endpoint.set_default_client_config(skip_verification_client_config());
+    endpoint.set_default_client_config(skip_verification_client_config(public_key));
 
     Ok(endpoint)
 }
 
-/// Dummy certificate verifier that treats any certificate as valid.
-/// NOTE, such verification is vulnerable to MITM attacks, but convenient for testing.
-struct SkipServerVerification;
-
-impl SkipServerVerification {
-    fn new() -> Arc<Self> {
-        Arc::new(Self)
-    }
+struct PublickeyVerification {
+    expected_key: Vec<u8>,
 }
 
-impl ServerCertVerifier for SkipServerVerification {
+impl ServerCertVerifier for PublickeyVerification {
     fn verify_server_cert(
         &self,
-        _end_entity: &Certificate,
+        end_entity: &Certificate,
         _intermediates: &[Certificate],
         _server_name: &ServerName,
         _scts: &mut dyn Iterator<Item = &[u8]>,
         _ocsp_response: &[u8],
         _now: SystemTime,
     ) -> Result<ServerCertVerified, rustls::Error> {
+        let certificate = x509_certificate::CapturedX509Certificate::from_der(end_entity.0.clone())
+            .map_err(|_| {
+                rustls::Error::InvalidCertificateData(
+                    "Unable to parse certificate data as x509".to_owned(),
+                )
+            })?;
+        certificate
+            .verify_signed_by_public_key(&self.expected_key)
+            .map_err(|_| rustls::Error::InvalidCertificateSignature)?;
+
         Ok(ServerCertVerified::assertion())
     }
 }
 
-fn skip_verification_client_config() -> ClientConfig {
+fn skip_verification_client_config(public_key: Vec<u8>) -> ClientConfig {
     let crypto = rustls::ClientConfig::builder()
         .with_safe_defaults()
-        .with_custom_certificate_verifier(SkipServerVerification::new())
+        .with_custom_certificate_verifier(Arc::new(PublickeyVerification {
+            expected_key: public_key,
+        }))
         .with_no_client_auth();
 
     ClientConfig::new(Arc::new(crypto))

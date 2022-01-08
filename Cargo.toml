@@ -14,4 +14,8 @@ anyhow = "1"
 futures = "0.3"
 rcgen = "0.8"
 async-trait = "0.1"
+tempfile = "3"
+rustls-pemfile = "0.2"
+x509-certificate = "0.6"
+hex = "0.4"
 rustls = { version = "0.20", features = ["quic", "dangerous_configuration"] }

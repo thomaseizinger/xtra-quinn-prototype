@@ -7,45 +7,58 @@ use xtra_quinn_prototype::{handle_protocol, BiStream, PingActor};
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    let mut incoming = make_server_endpoint("0.0.0.0:8080".parse()?)?.fuse();
+    let mut incoming = make_server_endpoint("0.0.0.0:0".parse()?)?.fuse();
 
-    while let Ok(new_connection) = incoming.select_next_some().await.await {
-        tokio::spawn(async move {
-            let mut bi_streams = new_connection.bi_streams.fuse();
+    loop {
+        match incoming.select_next_some().await.await {
+            Ok(new_connection) => {
+                tokio::spawn(async move {
+                    let mut bi_streams = new_connection.bi_streams.fuse();
 
-            while let Ok((mut send, mut recv)) = bi_streams.select_next_some().await {
-                let protocol = match multistream_select::listener_select_proto(
-                    BiStream::new(&mut send, &mut recv),
-                    vec![PingActor::PROTOCOL],
-                )
-                .await
-                {
-                    Ok((protocol, _)) => protocol,
-                    Err(e) => {
-                        eprintln!("Failed to negotiate protocol: {}", e);
-                        continue;
+                    while let Ok((mut send, mut recv)) = bi_streams.select_next_some().await {
+                        let protocol = match multistream_select::listener_select_proto(
+                            BiStream::new(&mut send, &mut recv),
+                            vec![PingActor::PROTOCOL],
+                        )
+                        .await
+                        {
+                            Ok((protocol, _)) => protocol,
+                            Err(e) => {
+                                eprintln!("Failed to negotiate protocol: {}", e);
+                                continue;
+                            }
+                        };
+
+                        handle_protocol(protocol, send, recv);
                     }
-                };
 
-                handle_protocol(protocol, send, recv);
+                    anyhow::Ok(())
+                });
             }
-
-            anyhow::Ok(())
-        });
+            Err(e) => {
+                eprintln!("Encountered error with new incoming connection: {}", e);
+            }
+        }
     }
-
-    Ok(())
 }
 
 pub fn make_server_endpoint(bind_addr: SocketAddr) -> Result<Incoming> {
     let server_config = self_signed_cert_config()?;
-    let (_endpoint, incoming) = Endpoint::server(server_config, bind_addr)?;
+    let (endpoint, incoming) = Endpoint::server(server_config, bind_addr)?;
+
+    println!("Listening on {}", endpoint.local_addr()?);
 
     Ok(incoming)
 }
 
 fn self_signed_cert_config() -> Result<ServerConfig> {
     let cert = rcgen::generate_simple_self_signed(vec!["localhost".into()])?;
+
+    println!(
+        "Public key: {}",
+        hex::encode(cert.get_key_pair().public_key_raw())
+    );
+
     let cert_der = cert.serialize_der()?;
     let priv_key = cert.serialize_private_key_der();
     let priv_key = PrivateKey(priv_key);
