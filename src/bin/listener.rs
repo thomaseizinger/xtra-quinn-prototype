@@ -10,14 +10,14 @@ use xtra_quinn_prototype::{handle_protocol, BiStream, PingActor};
 #[tokio::main]
 async fn main() -> Result<()> {
     let ed25519_der_private_key = match std::env::args().nth(1) {
-        Some(private_key) => hex::decode(private_key)?,
+        Some(private_key) => base64::decode(private_key)?,
         None => {
             let private_key = ring::signature::Ed25519KeyPair::generate_pkcs8(&SystemRandom::new())
                 .map_err(|_| anyhow!("Failed to generate new ed25519 keypair"))?
                 .as_ref()
                 .to_vec();
 
-            println!("Private key: {}", hex::encode(&private_key));
+            println!("Private key: {}", base64::encode(&private_key));
 
             private_key
         }
@@ -25,7 +25,7 @@ async fn main() -> Result<()> {
 
     println!(
         "Public key: {}",
-        hex::encode(
+        base64::encode(
             ring::signature::Ed25519KeyPair::from_pkcs8(&ed25519_der_private_key)
                 .unwrap()
                 .public_key()
@@ -82,13 +82,10 @@ pub fn make_server_endpoint(
 }
 
 fn self_signed_cert_config(ed25519_der_private_key: Vec<u8>) -> Result<ServerConfig> {
-    let key_pair = rcgen::KeyPair::from_der_and_sign_algo(
-        &ed25519_der_private_key,
-        &rcgen::PKCS_ECDSA_P384_SHA384,
-    )?;
+    let key_pair = rcgen::KeyPair::from_der(&ed25519_der_private_key)?;
 
     let mut params = rcgen::CertificateParams::new(vec!["example.com".into()]);
-    params.alg = &rcgen::PKCS_ECDSA_P384_SHA384;
+    params.alg = &key_pair.compatible_algs().next().expect("always an algo");
     params.key_pair = Some(key_pair);
 
     let cert = rcgen::Certificate::from_params(params)?;

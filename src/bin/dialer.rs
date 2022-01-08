@@ -18,7 +18,7 @@ async fn main() -> Result<()> {
         .parse::<u16>()
         .context("Cannot parse port as u16")?;
 
-    let public_key = hex::decode(std::env::args().nth(2).context("Expected public key")?)
+    let public_key = base64::decode(std::env::args().nth(2).context("Expected public key")?)
         .context("Expected hex-encoded public key")?;
 
     let endpoint = make_client_endpoint(public_key)?;
