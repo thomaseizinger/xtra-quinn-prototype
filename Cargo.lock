@@ -577,7 +577,6 @@ dependencies = [
  "futures",
  "hex",
  "quinn",
- "quinn-proto",
  "rcgen",
  "ring",
  "rustls",

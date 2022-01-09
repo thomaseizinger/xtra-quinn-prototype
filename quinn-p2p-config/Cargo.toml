@@ -7,7 +7,7 @@ description = "Configure quinn for public-key authentication by means of self-si
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-quinn-proto = "0.8"
+quinn = "0.8"
 rcgen = "0.8"
 x509-certificate = "0.6"
 hex = "0.4"

@@ -1,9 +1,9 @@
-use anyhow::{anyhow, Result};
+use anyhow::{anyhow, Context, Result};
 use futures::StreamExt;
-use quinn::{Endpoint, Incoming};
+use quinn::Endpoint;
+use quinn_p2p_config::NewConnectionExt;
 use ring::rand::SystemRandom;
 use ring::signature::KeyPair;
-use std::net::SocketAddr;
 use xtra_quinn_prototype::{handle_protocol, BiStream, PingActor};
 
 #[tokio::main]
@@ -45,6 +45,12 @@ async fn main() -> Result<()> {
     loop {
         match incoming.select_next_some().await.await {
             Ok(new_connection) => {
+                let public_key = new_connection
+                    .peer_public_key()
+                    .context("Failed to get peer's public key")?;
+
+                println!("New connection from: {}", base64::encode(public_key));
+
                 tokio::spawn(async move {
                     let mut bi_streams = new_connection.bi_streams.fuse();
 
