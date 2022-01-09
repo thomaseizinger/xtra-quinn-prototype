@@ -9,7 +9,7 @@ use tokio::io::AsyncBufReadExt;
 use tokio::io::BufReader;
 use xtra_quinn_prototype::{handle_protocol, BiStream};
 
-/// Simple program to greet a person
+/// QUIC-based dialing peer.
 #[derive(Parser, Debug)]
 struct Args {
     /// The server port to connect to.

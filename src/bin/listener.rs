@@ -7,7 +7,7 @@ use ring::rand::SystemRandom;
 use ring::signature::KeyPair;
 use xtra_quinn_prototype::{handle_protocol, BiStream, PingActor};
 
-/// Simple program to greet a person
+/// QUIC-based listening peer.
 #[derive(Parser, Debug)]
 struct Args {
     /// The port to listen on.
