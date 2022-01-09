@@ -1,4 +1,5 @@
 use anyhow::{anyhow, Context, Result};
+use clap::Parser;
 use multistream_select::NegotiationError;
 use multistream_select::Version;
 use quinn::Endpoint;
@@ -8,19 +9,32 @@ use tokio::io::AsyncBufReadExt;
 use tokio::io::BufReader;
 use xtra_quinn_prototype::{handle_protocol, BiStream};
 
+/// Simple program to greet a person
+#[derive(Parser, Debug)]
+struct Args {
+    /// The server port to connect to.
+    #[clap(long, default_value = "9999")]
+    server_port: u16,
+
+    /// The public key of the server, base64 encoded.
+    #[clap(long)]
+    server_pubkey: String,
+
+    /// Our own private key, base64 encoded.
+    ///
+    /// If no private-key is provided, a new one will be generated and printed to the console.
+    #[clap(long)]
+    own_priv_key: Option<String>,
+}
+
 #[tokio::main]
 async fn main() -> Result<()> {
-    let port = std::env::args()
-        .nth(1)
-        .context("Expected port to connect to")?
-        .parse::<u16>()
-        .context("Cannot parse port as u16")?;
+    let args = Args::parse();
 
     let ed25519_der_public_key =
-        base64::decode(std::env::args().nth(2).context("Expected public key")?)
-            .context("Expected hex-encoded public key")?;
+        base64::decode(args.server_pubkey).context("Expected hex-encoded public key")?;
 
-    let ed25519_der_private_key = match std::env::args().nth(3) {
+    let ed25519_der_private_key = match args.own_priv_key {
         Some(private_key) => base64::decode(private_key)?,
         None => {
             let private_key = ring::signature::Ed25519KeyPair::generate_pkcs8(&SystemRandom::new())
@@ -39,7 +53,7 @@ async fn main() -> Result<()> {
     let connection = endpoint
         .connect_with(
             quinn_p2p_config::client(ed25519_der_public_key, ed25519_der_private_key)?,
-            format!("127.0.0.1:{}", port).parse()?,
+            format!("127.0.0.1:{}", args.server_port).parse()?,
             quinn_p2p_config::SERVER_NAME,
         )?
         .await?;

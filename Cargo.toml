@@ -16,6 +16,7 @@ async-trait = "0.1"
 ring = "0.16"
 base64 = "0.13"
 quinn-p2p-config = { path = "./quinn-p2p-config" }
+clap = { version = "3" , features = ["derive"] }
 
 [workspace]
 members = ["./quinn-p2p-config"]

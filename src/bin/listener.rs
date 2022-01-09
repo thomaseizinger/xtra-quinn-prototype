@@ -1,4 +1,5 @@
 use anyhow::{anyhow, Context, Result};
+use clap::Parser;
 use futures::StreamExt;
 use quinn::Endpoint;
 use quinn_p2p_config::NewConnectionExt;
@@ -6,9 +7,25 @@ use ring::rand::SystemRandom;
 use ring::signature::KeyPair;
 use xtra_quinn_prototype::{handle_protocol, BiStream, PingActor};
 
+/// Simple program to greet a person
+#[derive(Parser, Debug)]
+struct Args {
+    /// The port to listen on.
+    #[clap(long, default_value = "9999")]
+    listen_port: u16,
+
+    /// Our own private key, base64 encoded.
+    ///
+    /// If no private-key is provided, a new one will be generated and printed to the console.
+    #[clap(long)]
+    own_priv_key: Option<String>,
+}
+
 #[tokio::main]
 async fn main() -> Result<()> {
-    let ed25519_der_private_key = match std::env::args().nth(1) {
+    let args = Args::parse();
+
+    let ed25519_der_private_key = match args.own_priv_key {
         Some(private_key) => base64::decode(private_key)?,
         None => {
             let private_key = ring::signature::Ed25519KeyPair::generate_pkcs8(&SystemRandom::new())
@@ -35,7 +52,7 @@ async fn main() -> Result<()> {
 
     let (endpoint, incoming) = Endpoint::server(
         quinn_p2p_config::server(ed25519_der_private_key)?,
-        "0.0.0.0:0".parse()?,
+        format!("0.0.0.0:{}", args.listen_port).parse()?,
     )?;
 
     println!("Listening on {}", endpoint.local_addr()?);
