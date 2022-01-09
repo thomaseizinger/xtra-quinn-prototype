@@ -46,8 +46,7 @@ fn self_signed_certificate_from_key(
 ) -> Result<(Vec<Certificate>, PrivateKey)> {
     let key_pair = rcgen::KeyPair::from_der(&ed25519_der_private_key)?;
 
-    let mut params =
-        rcgen::CertificateParams::new(vec!["we-only-verify-the-public-key.com".into()]);
+    let mut params = rcgen::CertificateParams::new(vec![SERVER_NAME.into()]);
     params.alg = &rcgen::PKCS_ED25519;
     params.key_pair = Some(key_pair);
 
