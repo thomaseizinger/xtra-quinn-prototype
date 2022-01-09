@@ -13,9 +13,12 @@ The answer is:
 ## Usage:
 
 ```shell
-cargo run --bin listener 
-cargo run --bin dialer {port} {pubkey}
+cargo run --bin listener <own-private-key>
+cargo run --bin dialer <server-port> <server-pubkey> <own-private-key>
 ```
 
-The `{port}` and `{pubkey}` are printed after starting the listener; example `cargo run --bin dialer 49503 3tovpICi8sTeTKlvEsSUXs0342BPh9w8lwEIALkJTc8=`.
+The `<port>`, `<server-pubkey>` and `<own-private-key>` are printed after starting the `listener` and can then be used to connect to it via `dialer`: `cargo run --bin dialer 49503 3tovpICi8sTeTKlvEsSUXs0342BPh9w8lwEIALkJTc8=`.
+If no `<own-private-key>` is provided, a new identity will be auto-generated and printed to the console.
+It can be supplied as an optional, last argument for persistent identities across runs.
+
 The listener supports protocol `/ping/1.0.0`, so once the dialer asks for which protocol to use you can enter that to upgrade successfully and receive ping/pong message.
